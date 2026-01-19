@@ -21,26 +21,52 @@ class Server:
             threading.Thread(target=self.handle_client, daemon=True, args=(client,)).start()
 
     def handle_client(self, client):
-        msg = client.recv(1024)
-        msg = json.loads(msg.decode())
-        action = msg['action']
-        data = msg['data']
-        if action == 'login':
-            print(f"login: {data}")
-            if self.db.validate_user(data['username'], data['password']):
-                msg = {
-                    "status": "success",
-                    "username": data["username"]
-                }
-            else:
-                msg = {
-                    "status": "failed"
-                }
-            client.send(json.dumps(msg).encode())
+        while True:
+            msg = client.recv(1024)
+            msg = json.loads(msg.decode())
+            action = msg['action']
+            data = msg['data']
+            if action == 'login':
+                print(f"login: {data}")
+                if self.db.validate_user(data['username'], data['password']):
+                    msg = {
+                        "status": "success",
+                        "username": data["username"]
+                    }
+                else:
+                    msg = {
+                        "status": "failed"
+                    }
+                client.send(json.dumps(msg).encode())
 
-        elif action == 'signup':
-            print(f"signup: {data}")
-            self.db.add_user(data['username'], data['password'])
+            elif action == 'signup':
+                print(f"signup: {data}")
+                self.db.add_user(data['username'], data['password'])
+
+            elif action == 'create_room':
+                self.room = Room(data["settings"])
+                print("room created")
+            elif action == 'upload':
+                print("starting video upload")
+                udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                self.room.users.append(client.getsockname())
+                udp_sock.bind(client.getsockname())
+                threading.Thread(target=self.handle_upload, daemon=True, args=(udp_sock,)).start()
+
+
+    def handle_upload(self, udp_sock):
+        bits = udp_sock.recv(1024)
+        for user in self.room.users:
+            if user != udp_sock.getsockname():
+                print("sending video")
+
+
+
+class Room:
+    def __init__(self,settings):
+        self.settings = settings
+        self.users = []
+
 
 
 server = Server()

@@ -1,6 +1,10 @@
+import json
+
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
+
+from Liav_eduZoom.HostRoom import HostRoom
 
 
 class CreateRoomWindow(QWidget):
@@ -122,6 +126,9 @@ class CreateRoomWindow(QWidget):
             "lock_room": lock_room,
             "disable_chat": disable_chat
         }
-
-
+        msg = {"action": "create_room", "data": {"settings":room_settings}}
         print(room_settings)
+        self.sock.send(json.dumps(msg).encode())
+        self.host_window = HostRoom(self.sock,room_settings)
+        self.host_window.show()
+        self.close()
