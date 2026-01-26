@@ -28,6 +28,7 @@ class LobbyWindow(QWidget):
         create_room_btn.clicked.connect(self.hundle_CreateRoomWindow)
 
         join_room_btn = QPushButton("Join Room")
+        join_room_btn.clicked.connect(self.hundle_JoinRoom)
 
         button_font = QFont("Arial", 20, QFont.Weight.Bold)
         create_room_btn.setFont(button_font)
@@ -77,4 +78,11 @@ class LobbyWindow(QWidget):
         from CreateRoomWindow import CreateRoomWindow
         self.CreateRoomWindow = CreateRoomWindow(self.sock)
         self.CreateRoomWindow.show()
+        self.close()
+
+    def hundle_JoinRoom(self):
+        print("showing joing room window")
+        from ClientRoom import ClientRoom
+        self.clientRoom = ClientRoom(self.sock)
+        self.clientRoom.show()
         self.close()

@@ -1,6 +1,9 @@
 import json
 import socket
 import sys
+from threading import Thread
+from tkinter import Image
+
 import cv2
 
 from PyQt6.QtCore import QThread, pyqtSignal, Qt, QByteArray, QBuffer, QIODevice
@@ -50,10 +53,9 @@ class VideoThread(QThread):
         self.wait()
 
 
-class HostRoom(QMainWindow):
-    def __init__(self,sock,room_settings):
+class ClientRoom(QMainWindow):
+    def __init__(self,sock):
         self.tcp_sock = sock
-        self.room_settings = room_settings
         super().__init__()
 
         self.setWindowTitle("Webcam Live Feed")
@@ -63,36 +65,25 @@ class HostRoom(QMainWindow):
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setCentralWidget(self.label)
 
-        self.video_thread = VideoThread()
-        self.video_thread.frame_ready.connect(self.update_image)
-        self.video_thread.start()
+
         msg = {
-            "action": "upload",
+            "action": "download",
             "data": {},
         }
         self.tcp_sock.send(json.dumps(msg).encode())
 
-        self.udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        udp_sock.bind(("127.0.0.1", 5557))
+        Thread(target=self.handle_receive_video,args=(udp_sock,)).start()
 
-
-    def update_image(self, qimg: QImage):
-        pixmap = QPixmap.fromImage(qimg)
+    def handle_receive_video(self, udp_sock):
+        print("receiving video")
+        recv_data = udp_sock.recv(1024)
+        img = QImage()
+        img.loadFromData(recv_data)
+        if img.isNull():
+            print("Invalid image")
+        else:
+            print("Image received:", img.size())
+        pixmap = QPixmap.fromImage(img)
         self.label.setPixmap(pixmap)
-
-        byte_array = QByteArray()
-        buffer = QBuffer(byte_array)
-        buffer.open(QIODevice.OpenModeFlag.WriteOnly)
-
-        qimg.save(buffer, "PNG")  # or b"JPG"
-        buffer.close()
-
-        data = byte_array.data()
-        print(byte_array.size())
-        self.udp_sock.sendto(data,("127.0.0.1",5556))
-
-
-
-    def closeEvent(self, event):
-        self.video_thread.stop()
-        event.accept()
-

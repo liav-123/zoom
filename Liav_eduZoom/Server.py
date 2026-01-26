@@ -50,15 +50,24 @@ class Server:
                 print("starting video upload")
                 udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 self.room.users.append(client.getsockname())
-                udp_sock.bind(client.getsockname())
+                udp_sock.bind(("127.0.0.1",5556))
                 threading.Thread(target=self.handle_upload, daemon=True, args=(udp_sock,)).start()
+            elif action == 'download':
+                udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                self.room.users.append((client.getsockname(),udp_sock))
+
 
 
     def handle_upload(self, udp_sock):
-        bits = udp_sock.recv(1024)
-        for user in self.room.users:
-            if user != udp_sock.getsockname():
-                print("sending video")
+        while True:
+            bits = udp_sock.recvfrom(1400)
+            print("data received")
+            for user,udp in self.room.users:
+                if user != udp_sock.getsockname():
+                    print("sending video")
+                    udp.sendto(bits,("127.0.0.1",5557))
+
+
 
 
 
