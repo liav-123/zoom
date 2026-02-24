@@ -72,7 +72,7 @@ class CreateRoomWindow(QWidget):
         # עיצוב
         self.setStyleSheet("""
             QWidget {
-                background-color: #f4f6f8;
+                background-color: #00000;
                 font-size: 14px;
             }
 

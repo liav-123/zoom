@@ -1,11 +1,14 @@
 import json
 import socket
 import threading
+from collections import defaultdict
 
 from DB import DB
+from Liav_eduZoom.Udp_Helper import UDP_Helper
 
 
 class Server:
+
     def __init__(self):
         self.db = DB()
 
@@ -47,10 +50,13 @@ class Server:
                 self.room = Room(data["settings"])
                 print("room created")
             elif action == 'upload':
-                print("starting video upload")
+                print("received upload command")
                 udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                udp_sock.bind(("127.0.0.1", 5556))
+                print("udp socket created")
                 self.room.users.append(client.getsockname())
-                udp_sock.bind(("127.0.0.1",5556))
+                print(f"user {client.getsockname()} added to users list")
+
                 threading.Thread(target=self.handle_upload, daemon=True, args=(udp_sock,)).start()
             elif action == 'download':
                 udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -59,13 +65,19 @@ class Server:
 
 
     def handle_upload(self, udp_sock):
+        print("starting video upload")
+        # Storage for incomplete frames: { frame_id: [chunk0, chunk1, ...] }
+        frame_buffer = defaultdict(list)
         while True:
-            bits = udp_sock.recvfrom(1400)
-            print("data received")
+            frame_data,addr = UDP_Helper.receive_and_reassemble(udp_sock,frame_buffer)
+            print("frame received")
             for user,udp in self.room.users:
                 if user != udp_sock.getsockname():
                     print("sending video")
-                    udp.sendto(bits,("127.0.0.1",5557))
+                    #udp.sendto(bits,("127.0.0.1",5557))
+
+
+
 
 
 

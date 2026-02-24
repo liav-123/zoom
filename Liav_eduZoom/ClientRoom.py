@@ -3,6 +3,7 @@ import socket
 import sys
 from threading import Thread
 from tkinter import Image
+from Udp_Helper import UDP_Helper
 
 import cv2
 
@@ -79,6 +80,7 @@ class ClientRoom(QMainWindow):
     def handle_receive_video(self, udp_sock):
         print("receiving video")
         recv_data = udp_sock.recv(1024)
+        receive_and_reassemble()
         img = QImage()
         img.loadFromData(recv_data)
         if img.isNull():

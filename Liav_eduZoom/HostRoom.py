@@ -1,11 +1,13 @@
 import json
 import socket
-import sys
+
+
 import cv2
 
 from PyQt6.QtCore import QThread, pyqtSignal, Qt, QByteArray, QBuffer, QIODevice
 from PyQt6.QtGui import QImage, QPixmap
-from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel
+from PyQt6.QtWidgets import  QMainWindow, QLabel
+from Udp_Helper import UDP_Helper
 
 
 class VideoThread(QThread):
@@ -16,6 +18,7 @@ class VideoThread(QThread):
         self.running = True
 
     def run(self):
+        print("starting video thread")
         cap = cv2.VideoCapture(0)
 
         if not cap.isOpened():
@@ -24,6 +27,7 @@ class VideoThread(QThread):
 
         while self.running:
             ret, frame = cap.read()
+            print("screen captured")
             if not ret:
                 break
 
@@ -41,8 +45,9 @@ class VideoThread(QThread):
                 QImage.Format.Format_RGB888
             )
 
-            self.frame_ready.emit(qimg)
 
+            self.frame_ready.emit(qimg)
+            print("frame emitted")
         cap.release()
 
     def stop(self):
@@ -71,28 +76,38 @@ class HostRoom(QMainWindow):
             "data": {},
         }
         self.tcp_sock.send(json.dumps(msg).encode())
+        print("upload action sent to server")
 
         self.udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        print("udp socket created")
 
 
+    frame_counter = 0
     def update_image(self, qimg: QImage):
+        print("frame received")
         pixmap = QPixmap.fromImage(qimg)
         self.label.setPixmap(pixmap)
-
+        print("pixmap displayed")
         byte_array = QByteArray()
         buffer = QBuffer(byte_array)
         buffer.open(QIODevice.OpenModeFlag.WriteOnly)
 
-        qimg.save(buffer, "PNG")  # or b"JPG"
+        qimg.save(buffer, "JPG")  # or b"JPG"
         buffer.close()
 
         data = byte_array.data()
         print(byte_array.size())
-        self.udp_sock.sendto(data,("127.0.0.1",5556))
+        try:
+            UDP_Helper.send_frame_to_server(self.udp_sock,data,("127.0.0.1",5556),self.frame_counter)
+            self.frame_counter = (self.frame_counter + 1) % 256
+        except Exception as e:
+            print("error sending data to the server ",e)
+        print("frame data sent to server")
 
 
 
     def closeEvent(self, event):
         self.video_thread.stop()
         event.accept()
+
 
