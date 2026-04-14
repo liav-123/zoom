@@ -1,6 +1,6 @@
 import json
 import socket
-
+import time
 
 import cv2
 
@@ -47,6 +47,7 @@ class VideoThread(QThread):
 
             self.frame_ready.emit(qimg)
             print("frame emitted")
+            time.sleep(1/30)
         cap.release()
 
     def stop(self):
@@ -74,7 +75,7 @@ class HostRoom(QMainWindow):
             "action": "upload",
             "data": {},
         }
-        self.tcp_sock.send(json.dumps(msg).encode())
+        self.tcp_sock.send((json.dumps(msg) + "\n").encode())
         print("upload action sent to server")
 
         self.udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

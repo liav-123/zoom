@@ -131,7 +131,7 @@ class CreateWindow(QWidget):
         }
         msg = {"action": "create_room", "data": {"settings":room_settings}}
         print(room_settings)
-        self.sock.send(json.dumps(msg).encode())
+        self.sock.send((json.dumps(msg) + "\n").encode())
         self.host_window = HostRoom(self.sock,room_settings)
         self.host_window.show()
         self.close()

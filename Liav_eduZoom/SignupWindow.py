@@ -51,7 +51,13 @@ class signupWindow(QWidget):
                 "action": "signup",
                 "data": {"username": username, "password": password},
             }
-            self.sock.send(json.dumps(msg).encode())
-            self.login_window = LoginWindow(self.sock)
-            self.login_window.show()
-            self.close()
+            self.sock.send((json.dumps(msg) + "\n").encode())
+            # Wait for server success response
+            response_data = self.sock.recv(1024).decode().strip()
+            if response_data:
+                response = json.loads(response_data)
+                if response.get("status") == "success":
+                    from LoginWindow import LoginWindow
+                    self.login_window = LoginWindow(self.sock)
+                    self.login_window.show()
+                    self.close()

@@ -59,8 +59,7 @@ class LoginWindow(QMainWindow):
         }
 
         # send to server
-        self.sock.send(json.dumps(msg).encode())
-
+        self.sock.send((json.dumps(msg) + "\n").encode())
         # receive response from server
         response = self.sock.recv(1024).decode()
         response = json.loads(response)

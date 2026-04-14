@@ -1,91 +1,66 @@
 import json
 import socket
-import sys
-from threading import Thread
-from tkinter import Image
+from collections import defaultdict
+from PyQt6.QtCore import QThread, pyqtSignal, Qt
+from PyQt6.QtGui import QImage, QPixmap
+from PyQt6.QtWidgets import QMainWindow, QLabel
 from Udp_Helper import UDP_Helper
 
-import cv2
-
-from PyQt6.QtCore import QThread, pyqtSignal, Qt, QByteArray, QBuffer, QIODevice
-from PyQt6.QtGui import QImage, QPixmap
-from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel
-
-
-class VideoThread(QThread):
+class ReceiveVideoThread(QThread):
     frame_ready = pyqtSignal(QImage)
 
-    def __init__(self):
+    def __init__(self, udp_sock):
         super().__init__()
+        self.udp_sock = udp_sock
         self.running = True
+        self.frame_buffer = defaultdict(list)
 
     def run(self):
-        cap = cv2.VideoCapture(0)
-
-        if not cap.isOpened():
-            print("Error: Could not open webcam.")
-            return
-
+        print("Receiving video thread started")
         while self.running:
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            # OpenCV uses BGR, Qt uses RGB
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-            h, w, ch = frame.shape
-            bytes_per_line = ch * w
-
-            qimg = QImage(
-                frame.data,
-                w,
-                h,
-                bytes_per_line,
-                QImage.Format.Format_RGB888
-            )
-
-            self.frame_ready.emit(qimg)
-
-        cap.release()
+            frame_data, addr = UDP_Helper.receive_and_reassemble(self.udp_sock, self.frame_buffer)
+            if frame_data:
+                img = QImage()
+                img.loadFromData(frame_data)
+                if not img.isNull():
+                    self.frame_ready.emit(img)
 
     def stop(self):
         self.running = False
         self.wait()
 
-
 class ClientRoom(QMainWindow):
-    def __init__(self,sock):
-        self.tcp_sock = sock
+    def __init__(self, sock):
         super().__init__()
-
-        self.setWindowTitle("Webcam Live Feed")
+        self.tcp_sock = sock
+        self.setWindowTitle("Webcam Live Feed - Viewer")
         self.resize(800, 600)
 
         self.label = QLabel(self)
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setCentralWidget(self.label)
 
+        # Bind to a dynamic ephemeral port (0) so multiple clients don't collide
+        self.udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.udp_sock.bind(("127.0.0.1", 0))
+        my_udp_port = self.udp_sock.getsockname()[1]
 
+        # Tell server our port
         msg = {
             "action": "download",
-            "data": {},
+            "data": {"udp_port": my_udp_port},
         }
-        self.tcp_sock.send(json.dumps(msg).encode())
+        self.tcp_sock.send((json.dumps(msg) + "\n").encode())
 
-        udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        udp_sock.bind(("127.0.0.1", 5557))
-        Thread(target=self.handle_receive_video,args=(udp_sock,)).start()
+        # Start QThread for GUI-safe receiving
+        self.recv_thread = ReceiveVideoThread(self.udp_sock)
+        self.recv_thread.frame_ready.connect(self.update_image)
+        self.recv_thread.start()
 
-    def handle_receive_video(self, udp_sock):
-        print("receiving video")
-        recv_data = udp_sock.recv(1024)
-        receive_and_reassemble()
-        img = QImage()
-        img.loadFromData(recv_data)
-        if img.isNull():
-            print("Invalid image")
-        else:
-            print("Image received:", img.size())
-        pixmap = QPixmap.fromImage(img)
+    def update_image(self, qimg: QImage):
+        pixmap = QPixmap.fromImage(qimg)
         self.label.setPixmap(pixmap)
+
+    def closeEvent(self, event):
+        self.recv_thread.stop()
+        event.accept()
