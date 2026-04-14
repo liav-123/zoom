@@ -6,7 +6,7 @@ from LoginWindow import LoginWindow
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 sock.connect(('127.0.0.1', 5555))
 app = QApplication(sys.argv)
-
+ #test test test
 login_window = LoginWindow(sock)
 login_window.show()
 print("created login window")
