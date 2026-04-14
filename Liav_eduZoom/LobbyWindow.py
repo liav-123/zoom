@@ -75,10 +75,13 @@ class LobbyWindow(QWidget):
 
     def hundle_CreateRoomWindow(self):
         print("showing create room window")
-        from CreateRoomWindow import CreateRoomWindow
-        self.CreateRoomWindow = CreateRoomWindow(self.sock)
-        self.CreateRoomWindow.show()
-        self.close()
+        from CreateRoomWindow import CreateWindow
+        print("creating createRoomWindow....")
+        self.create_Room_Window = CreateWindow(self.sock)
+        print("showing createRoomWindow")
+        self.create_Room_Window.show()
+        print("finished showing createRoomWindow")
+        self.hide()
 
     def hundle_JoinRoom(self):
         print("showing joing room window")

@@ -45,7 +45,6 @@ class VideoThread(QThread):
                 QImage.Format.Format_RGB888
             )
 
-
             self.frame_ready.emit(qimg)
             print("frame emitted")
         cap.release()

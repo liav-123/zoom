@@ -4,12 +4,13 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
 
-from Liav_eduZoom.HostRoom import HostRoom
+from HostRoom import HostRoom
 
 
-class CreateRoomWindow(QWidget):
+class CreateWindow(QWidget):
     def __init__(self,sock):
         super().__init__()
+        print("starting createRoomWindow")
         self.sock = sock
         self.setWindowTitle("Create Room")
         self.setFixedSize(500, 500)
@@ -107,6 +108,8 @@ class CreateRoomWindow(QWidget):
         main_layout.addWidget(create_btn)
 
         self.setLayout(main_layout)
+
+        print("finished creating createRoomWindow")
 
     def handle_create_room(self):
         limit_people = self.limit_spin.value()
