@@ -13,14 +13,37 @@ class Server:
         self.server.listen(5)
         print("Server Listening on port 5555")
 
-        # Bind ONE central UDP socket for relaying video chunks
+        # Existing Video UDP socket
         self.udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.udp_sock.bind(("127.0.0.1", 5556))
 
-        self.room = Room({})  # Supporting one global room for now
+        # ---> NEW: Audio UDP socket <---
+        self.udp_audio_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.udp_audio_sock.bind(("127.0.0.1", 5557))
 
-        # Start the video relay service
+        self.room = Room({})
+
+        # Start the relays
         threading.Thread(target=self.handle_upload, daemon=True).start()
+        # ---> NEW: Start audio relay <---
+        threading.Thread(target=self.handle_audio_upload, daemon=True).start()
+
+    # ... (keep handle_client and handle_upload exactly as they are) ...
+
+    # ---> NEW: Add this method below handle_upload <---
+    def handle_audio_upload(self):
+        print("Starting audio relay service")
+        while True:
+            try:
+                # Receive a chunk of audio from the host
+                packet, addr = self.udp_audio_sock.recvfrom(65535)
+                # Forward to all viewers
+                for viewer_addr in self.room.viewers:
+                    # The viewer's audio port will be their video port + 1
+                    audio_viewer_addr = (viewer_addr[0], viewer_addr[1] + 1)
+                    self.udp_audio_sock.sendto(packet, audio_viewer_addr)
+            except Exception as e:
+                print("Error relaying audio:", e)
 
     def run(self):
         while True:

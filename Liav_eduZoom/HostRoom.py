@@ -8,7 +8,7 @@ from PyQt6.QtCore import QThread, pyqtSignal, Qt, QByteArray, QBuffer, QIODevice
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtWidgets import  QMainWindow, QLabel
 from Udp_Helper import UDP_Helper
-
+import sounddevice as sd
 
 class VideoThread(QThread):
     frame_ready = pyqtSignal(QImage)
@@ -81,6 +81,24 @@ class HostRoom(QMainWindow):
         self.udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         print("udp socket created")
 
+        self.video_thread.frame_ready.connect(self.update_image)
+        self.video_thread.start()
+
+        msg = {
+            "action": "upload",
+            "data": {},
+        }
+        self.tcp_sock.send((json.dumps(msg) + "\n").encode())
+        print("upload action sent to server")
+
+        self.udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        print("udp socket created")
+
+        # ---> NEW: Create Audio Socket and Thread <---
+        self.udp_audio_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.audio_thread = AudioSenderThread(self.udp_audio_sock, ("127.0.0.1", 5557))
+        self.audio_thread.start()
+
 
     frame_counter = 0
     def update_image(self, qimg: QImage):
@@ -108,6 +126,33 @@ class HostRoom(QMainWindow):
 
     def closeEvent(self, event):
         self.video_thread.stop()
+        self.audio_thread.stop()  # ---> NEW: Stop audio when closing <---
         event.accept()
+
+
+class AudioSenderThread(QThread):
+    def __init__(self, udp_sock, server_addr):
+        super().__init__()
+        self.udp_sock = udp_sock
+        self.server_addr = server_addr
+        self.running = True
+        self.chunk = 1024
+
+    def run(self):
+        print("Starting audio sending thread")
+        with sd.RawInputStream(samplerate=44100, blocksize=self.chunk, channels=1, dtype='int16') as stream:
+            while self.running:
+                try:
+                    data, overflowed = stream.read(self.chunk)
+                    self.udp_sock.sendto(data, self.server_addr)
+                except Exception as e:
+                    print("Audio send error:", e)
+
+    def stop(self):
+        self.running = False
+        self.wait()
+
+
+
 
 
