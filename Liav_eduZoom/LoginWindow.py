@@ -1,3 +1,4 @@
+import hashlib
 import json
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import QFont
@@ -53,9 +54,11 @@ class LoginWindow(QMainWindow):
         if not username or not password:
             return
 
+        hash_password = hashlib.sha256(password.encode()).hexdigest()
         msg = {
+
             "action": "login",
-            "data": {"username": username, "password": password},
+            "data": {"username": username, "password": hash_password},
         }
 
         # send to server

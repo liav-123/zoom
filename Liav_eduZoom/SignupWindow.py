@@ -1,3 +1,4 @@
+import hashlib
 import json
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import QFont
@@ -47,9 +48,10 @@ class signupWindow(QWidget):
         if username == '' or password == '':
             return
         else:
+            hash_password = hashlib.sha256(password.encode()).hexdigest()
             msg = {
                 "action": "signup",
-                "data": {"username": username, "password": password},
+                "data": {"username": username, "password": hash_password},
             }
             self.sock.send((json.dumps(msg) + "\n").encode())
             # Wait for server success response
