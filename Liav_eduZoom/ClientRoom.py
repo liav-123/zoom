@@ -124,11 +124,15 @@ class ClientRoom(QMainWindow):
 
         # יצירת חיבורים ווידאו ואודיו
         self.udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.udp_sock.bind(("127.0.0.1", 0))
+        try:
+            self.udp_sock.bind(("0.0.0.0", 0))
+        except Exception as e:
+            print(e)
+
         my_udp_port = self.udp_sock.getsockname()[1]
 
         self.udp_audio_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.udp_audio_sock.bind(("127.0.0.1", my_udp_port + 1))
+        self.udp_audio_sock.bind(("0.0.0.0", my_udp_port + 1))
 
         msg = {"action": "download", "data": {"udp_port": my_udp_port}}
         self.tcp_sock.send((json.dumps(msg) + "\n").encode())
