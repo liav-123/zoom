@@ -1,14 +1,15 @@
 import json
 import socket
-from collections import defaultdict
-from PyQt6.QtCore import QThread, pyqtSignal, Qt
+import time
+import cv2
+from PyQt6.QtCore import QThread, pyqtSignal, Qt, QByteArray, QBuffer, QIODevice
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtWidgets import QMainWindow, QLabel, QWidget, QHBoxLayout, QVBoxLayout, QTextEdit, QLineEdit, QPushButton
 from Udp_Helper import UDP_Helper
 import sounddevice as sd
 
 
-# ---> NEW: תהליכון שמאזין להודעות צ'אט נכנסות <---
+
 class ChatReceiverThread(QThread):
     message_received = pyqtSignal(str, str)
 
@@ -44,42 +45,54 @@ class ChatReceiverThread(QThread):
         self.wait()
 
 
-class ReceiveVideoThread(QThread):
+class VideoThread(QThread):
     frame_ready = pyqtSignal(QImage)
 
-    def __init__(self, udp_sock):
+    def __init__(self):
         super().__init__()
-        self.udp_sock = udp_sock
         self.running = True
-        self.frame_buffer = defaultdict(list)
 
     def run(self):
+        print("starting video thread")
+        cap = cv2.VideoCapture(0)
+        if not cap.isOpened():
+            print("Error: Could not open webcam.")
+            return
+
         while self.running:
-            frame_data, addr = UDP_Helper.receive_and_reassemble(self.udp_sock, self.frame_buffer)
-            if frame_data:
-                img = QImage()
-                img.loadFromData(frame_data)
-                if not img.isNull():
-                    self.frame_ready.emit(img)
+            ret, frame = cap.read()
+            if not ret: break
+
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            h, w, ch = frame.shape
+            bytes_per_line = ch * w
+
+            # חשוב: .copy() מונע קריסות זיכרון
+            qimg = QImage(frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888).copy()
+            self.frame_ready.emit(qimg)
+            time.sleep(1 / 30)
+        cap.release()
 
     def stop(self):
         self.running = False
         self.wait()
 
 
-class ReceiveAudioThread(QThread):
-    def __init__(self, udp_audio_sock):
+class AudioSenderThread(QThread):
+    def __init__(self, udp_sock, server_addr):
         super().__init__()
-        self.udp_audio_sock = udp_audio_sock
+        self.udp_sock = udp_sock
+        self.server_addr = server_addr
         self.running = True
         self.chunk = 1024
 
     def run(self):
-        with sd.RawOutputStream(samplerate=44100, blocksize=self.chunk, channels=1, dtype='int16') as stream:
+        print("Starting audio sending thread")
+        with sd.RawInputStream(samplerate=44100, blocksize=self.chunk, channels=1, dtype='int16') as stream:
             while self.running:
                 try:
-                    data, addr = self.udp_audio_sock.recvfrom(65535)
-                    stream.write(data)
+                    data, overflowed = stream.read(self.chunk)
+                    self.udp_sock.sendto(data, self.server_addr)
                 except Exception as e:
                     pass
 
@@ -88,12 +101,14 @@ class ReceiveAudioThread(QThread):
         self.wait()
 
 
-class ClientRoom(QMainWindow):
-    def __init__(self, sock):
+class HostRoom(QMainWindow):
+    def __init__(self, sock, room_settings):
         super().__init__()
         self.tcp_sock = sock
-        self.setWindowTitle("Zoom - Viewer")
-        self.resize(1000, 600)
+        self.room_settings = room_settings
+
+        self.setWindowTitle("Zoom - Host")
+        self.resize(1000, 600)  # הרחבנו את החלון כדי שיהיה מקום לצ'אט
 
         # ---> NEW: עיצוב המסך המפוצל <---
         main_widget = QWidget()
@@ -115,52 +130,56 @@ class ClientRoom(QMainWindow):
 
         self.send_btn = QPushButton("Send")
         self.send_btn.clicked.connect(self.send_chat_message)
-        self.send_btn.setStyleSheet("background-color: #3498db; color: white; padding: 5px;")
+        self.send_btn.setStyleSheet("background-color: #2ecc71; color: white; padding: 5px;")
 
         chat_layout.addWidget(self.chat_display)
         chat_layout.addWidget(self.chat_input)
         chat_layout.addWidget(self.send_btn)
         main_layout.addLayout(chat_layout, stretch=1)
 
-        # יצירת חיבורים ווידאו ואודיו
-        self.udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-            self.udp_sock.bind(("0.0.0.0", 0))
-        except Exception as e:
-            print(e)
-
-        my_udp_port = self.udp_sock.getsockname()[1]
-
-        self.udp_audio_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.udp_audio_sock.bind(("0.0.0.0", my_udp_port + 1))
-
-        msg = {"action": "download", "data": {"udp_port": my_udp_port}}
+        # הפעלת תהליכוני הווידאו והאודיו
+        msg = {"action": "upload", "data": {}}
         self.tcp_sock.send((json.dumps(msg) + "\n").encode())
 
-        self.recv_thread = ReceiveVideoThread(self.udp_sock)
-        self.recv_thread.frame_ready.connect(self.update_image)
-        self.recv_thread.start()
+        self.udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.video_thread = VideoThread()
+        self.video_thread.frame_ready.connect(self.update_image)
+        self.video_thread.start()
 
-        self.recv_audio_thread = ReceiveAudioThread(self.udp_audio_sock)
-        self.recv_audio_thread.start()
+        self.udp_audio_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.audio_thread = AudioSenderThread(self.udp_audio_sock, ("127.0.0.1", 5557))
+        self.audio_thread.start()
 
         # ---> NEW: הפעלת תהליכון הצ'אט <---
         self.chat_thread = ChatReceiverThread(self.tcp_sock)
         self.chat_thread.message_received.connect(self.update_chat_display)
         self.chat_thread.start()
 
+    frame_counter = 0
+
     def update_image(self, qimg: QImage):
         pixmap = QPixmap.fromImage(qimg)
         self.label.setPixmap(pixmap)
+        byte_array = QByteArray()
+        buffer = QBuffer(byte_array)
+        buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+        qimg.save(buffer, "JPG")
+        buffer.close()
+        data = byte_array.data()
+        try:
+            UDP_Helper.send_frame_to_server(self.udp_sock, data, ("127.0.0.1", 5556), self.frame_counter)
+            self.frame_counter = (self.frame_counter + 1) % 256
+        except Exception as e:
+            pass
 
     # ---> NEW: פונקציות הצ'אט <---
     def send_chat_message(self):
         text = self.chat_input.text().strip()
         if text:
-            msg = {"action": "chat", "data": {"sender": "Viewer", "message": text}}
+            msg = {"action": "chat", "data": {"sender": "Host", "message": text}}
             try:
                 self.tcp_sock.send((json.dumps(msg) + "\n").encode())
-                self.chat_input.clear()
+                self.chat_input.clear()  # ניקוי שורת ההקלדה אחרי השליחה
             except Exception as e:
                 pass
 
@@ -168,7 +187,7 @@ class ClientRoom(QMainWindow):
         self.chat_display.append(f"<b>{sender}:</b> {text}")
 
     def closeEvent(self, event):
-        self.recv_thread.stop()
-        self.recv_audio_thread.stop()
-        self.chat_thread.stop()
+        self.video_thread.stop()
+        self.audio_thread.stop()
+        self.chat_thread.stop()  # עצירת הצ'אט
         event.accept()
