@@ -144,6 +144,7 @@ class LoginWindow(QMainWindow):
 
         hash_password = hashlib.sha256(password.encode()).hexdigest()
         msg = {
+
             "action": "login",
             "data": {"username": username, "password": hash_password},
         }

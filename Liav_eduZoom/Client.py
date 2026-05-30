@@ -6,7 +6,7 @@ from config import SERVER_IP
 
 try:
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect(('127.0.0.1', 5555))
+    sock.connect((SERVER_IP, 5555))
     app = QApplication(sys.argv)
     login_window = LoginWindow(sock)
     login_window.show()
