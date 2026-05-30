@@ -8,17 +8,17 @@ class Server:
     def __init__(self):
         self.db = DB()
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server.bind(('127.0.0.1', 5555))
+        self.server.bind(('0.0.0.0', 5555))
         self.server.listen(5)
         print("Server Listening on port 5555")
 
         # Video UDP socket
         self.udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.udp_sock.bind(("127.0.0.1", 5556))
+        self.udp_sock.bind(("0.0.0.0", 5556))
 
         # Audio UDP socket
         self.udp_audio_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.udp_audio_sock.bind(("127.0.0.1", 5557))
+        self.udp_audio_sock.bind(("0.0.0.0", 5557))
 
         self.room = Room({})
 

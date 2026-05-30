@@ -56,7 +56,7 @@ class LoginWindow(QMainWindow):
 
         signup_button = QPushButton("Sign Up")
         signup_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        signup_button.setStyleSheet("background-color: #2ecc71;")
+        signup_button.setStyleSheet("background-color: #2ecc71;")  # צבע ירוק לכפתור הרשמה
         signup_button.clicked.connect(self.handle_signup)
 
         # הוספת האלמנטים למסך

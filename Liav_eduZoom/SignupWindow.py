@@ -150,7 +150,7 @@ class signupWindow(QWidget):
         }
         self.sock.send((json.dumps(msg) + "\n").encode())
 
-
+        # ожидание תשובה מהשרת
         response_data = self.sock.recv(1024).decode().strip()
         if response_data:
             response = json.loads(response_data)

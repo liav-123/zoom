@@ -2,6 +2,7 @@ import socket
 import sys
 from PyQt6.QtWidgets import *
 from LoginWindow import LoginWindow
+from config import SERVER_IP
 
 try:
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -14,4 +15,3 @@ try:
 
 except BaseException as e:
     print(e)
-
